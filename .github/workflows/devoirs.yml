@@ -1,0 +1,41 @@
+name: Devoirs Pronote
+
+on:
+  schedule:
+    - cron: "0 12 * * *"    # 16 h à Dubaï
+    - cron: "30 14 * * *"   # 18 h 30 à Dubaï
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Récupérer les devoirs
+        env:
+          PRONOTE_URL: ${{ secrets.PRONOTE_URL }}
+          PRONOTE_USER: ${{ secrets.PRONOTE_USER }}
+          PRONOTE_PASS: ${{ secrets.PRONOTE_PASS }}
+          PRONOTE_ENT: ${{ secrets.PRONOTE_ENT }}
+          PRONOTE_CHILD: ${{ secrets.PRONOTE_CHILD }}
+          PAGE_SLUG: ${{ secrets.PAGE_SLUG }}
+        run: python devoirs.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
