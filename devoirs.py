@@ -13,12 +13,26 @@ import datetime as dt
 import html
 import json
 import os
+import re
 import sys
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo(os.environ.get("TZ_NAME", "Asia/Dubai"))
 JOURS = 14
 JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+EVAL_RE = re.compile(r"[ée]valuation|comp[ée]tence", re.I)
+DS_RE = re.compile(r"\b(DS|DST|devoir surveill[ée]|contr[ôo]le|interro(gation)?|examen|test|brevet blanc|bac blanc)\b", re.I)
+
+
+def classer(texte):
+    """Renvoie 'eval', 'ds' ou None selon le texte (catégorie Pronote ou consigne)."""
+    if EVAL_RE.search(texte or ""):
+        return "eval"
+    if DS_RE.search(texte or ""):
+        return "ds"
+    return None
+
+
 MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
            "septembre", "octobre", "novembre", "décembre"]
 
@@ -63,7 +77,20 @@ def fetch():
             "statut": c.status or "",
         })
     cours.sort(key=lambda c: c["debut"])
-    return {"maj": dt.datetime.now(TZ).isoformat(), "devoirs": devoirs,
+
+    # Prochains DS et évaluations : cours marqués « devoir » dans l'emploi du temps,
+    # ou dont le contenu (cahier de textes) est de catégorie DS / évaluation.
+    ds = []
+    for c in client.lessons(today, today + dt.timedelta(days=JOURS)):
+        if c.canceled:
+            continue
+        contenu = c.content
+        cat = " ".join(filter(None, [getattr(contenu, "category", None), getattr(contenu, "title", None)])) if contenu else ""
+        genre = classer(cat) or ("ds" if getattr(c, "test", False) else None)
+        if genre:
+            ds.append({"date": c.start.date().isoformat(), "heure": c.start.strftime("%H:%M"),
+                       "matiere": c.subject.name if c.subject else "", "texte": cat.strip(), "genre": genre})
+    return {"maj": dt.datetime.now(TZ).isoformat(), "devoirs": devoirs, "ds": ds,
             "edt_date": demain.isoformat(), "edt": cours}
 
 
@@ -75,6 +102,9 @@ def demo():
         {"date": d(1), "matiere": "MATHÉMATIQUES", "couleur": "#409eff", "texte": "Exercices 12, 14 et 15 page 87.", "fait": True},
         {"date": d(2), "matiere": "FRANÇAIS", "couleur": "#f56c6c", "texte": "Lire le chapitre 3 et répondre aux questions 1 à 5.", "fait": False},
         {"date": d(4), "matiere": "HISTOIRE-GÉOGRAPHIE", "couleur": "#67c23a", "texte": "Réviser la leçon sur les Carolingiens.", "fait": False},
+    ], "ds": [
+        {"date": d(3), "heure": "10:15", "matiere": "MATHÉMATIQUES", "texte": "", "genre": "ds"},
+        {"date": d(5), "heure": "13:00", "matiere": "ANGLAIS", "texte": "Évaluation de compétences : expression orale", "genre": "eval"},
     ], "edt": [
         {"debut": "08:00", "matiere": "MATHÉMATIQUES", "annule": False, "statut": ""},
         {"debut": "09:00", "matiere": "ESPAGNOL", "annule": False, "statut": ""},
@@ -95,6 +125,10 @@ h2.loin{background:#555}
 .fait{color:#666}
 .fait .t{text-decoration:line-through}
 .ok{font-size:22px}
+.ds{border:4px solid #000;padding:10px 14px;margin:0 0 16px}
+.dst{font-size:32px;font-weight:bold;margin-bottom:6px}
+.dsi{padding:6px 0;border-top:1px solid #999;font-size:28px}
+.dsi:first-of-type{border-top:0}
 .vide{font-style:italic;color:#444}
 table{border-collapse:collapse;width:100%;font-size:26px}
 td{padding:6px 8px;border-bottom:1px solid #999;vertical-align:top}
@@ -117,6 +151,30 @@ def render(data):
            "<title>Devoirs</title><style>", CSS, "</style></head><body>",
            "<h1>Devoirs</h1>",
            f"<div class='maj'>Mis à jour le {date_fr(maj.date())} à {maj:%H:%M}</div>"]
+
+    # Prochains DS puis évaluations, avant les devoirs
+    blocs = {"ds": {}, "eval": {}}
+    for t in data.get("ds", []):
+        blocs[t.get("genre", "ds")][(t["date"], t["matiere"])] = dict(t)
+    for h in data["devoirs"]:
+        genre = classer(h["texte"])
+        if genre:
+            k = (h["date"], h["matiere"])
+            item = blocs[genre].setdefault(k, {"date": h["date"], "heure": "", "matiere": h["matiere"], "texte": ""})
+            item["texte"] = h["texte"]
+    for genre, titre, vide in (("ds", "Prochains DS", "Aucun DS prévu"),
+                               ("eval", "Prochaines évaluations de compétences", "Aucune évaluation prévue")):
+        out.append(f"<div class='ds'><div class='dst'>{titre}</div>")
+        if not blocs[genre]:
+            out.append(f"<div class='vide'>{vide} dans les {JOURS} prochains jours.</div>")
+        for (jour, _), t in sorted(blocs[genre].items()):
+            d = dt.date.fromisoformat(jour)
+            ecart = (d - today).days
+            quand = {0: "aujourd'hui", 1: "demain"}.get(ecart, f"{date_fr(d)} (dans {ecart} j)")
+            heure = f" à {t['heure'].replace(':', ' h ')}" if t["heure"] else ""
+            texte = f"<div class='t'>{e(t['texte'].strip())}</div>" if t["texte"] else ""
+            out.append(f"<div class='dsi'><b>{e(t['matiere'])}</b> — {e(quand)}{e(heure)}{texte}</div>")
+        out.append("</div>")
 
     if not par_jour:
         out.append("<p class='vide'>Aucun devoir dans les prochains jours.</p>")
