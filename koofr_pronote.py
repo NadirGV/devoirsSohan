@@ -146,9 +146,17 @@ def archiver(client, vers_pdf, aujourd_hui):
         debut = debut.date()
 
     elements = []  # (matière, thème, date, titre source, objet avec .files, texte)
-    for h in client.homework(debut, aujourd_hui + dt.timedelta(days=30)):
-        elements.append((matiere(h.subject.name if h.subject else ""), "Devoirs", h.date,
-                         "Devoir", h, h.description or ""))
+    # travail à faire, semaine par semaine : Pronote refuse les trop longues périodes
+    jour = debut
+    while jour <= aujourd_hui + dt.timedelta(days=14):
+        fin = jour + dt.timedelta(days=6)
+        try:
+            for h in client.homework(jour, fin):
+                elements.append((matiere(h.subject.name if h.subject else ""), "Devoirs", h.date,
+                                 "Devoir", h, h.description or ""))
+        except Exception as err:
+            print("Koofr : devoirs illisibles du", jour, "au", fin, ":", err)
+        jour = fin + dt.timedelta(days=1)
     # cahier de textes, semaine par semaine (plus fiable sur une longue période)
     jour = debut
     while jour <= aujourd_hui:

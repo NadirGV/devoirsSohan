@@ -205,7 +205,7 @@ def pieces(objet, docs):
     return [piece_jointe(f, docs) for f in (getattr(objet, "files", None) or [])]
 
 
-def fetch(docs):
+def connexion():
     import pronotepy
     import pronotepy.ent
     url = os.environ["PRONOTE_URL"]
@@ -218,15 +218,12 @@ def fetch(docs):
         sys.exit("Connexion Pronote refusée")
     if cls is pronotepy.ParentClient and child:
         client.set_child(child)
+    return client
 
+
+def fetch(docs):
+    client = connexion()
     today = dt.datetime.now(TZ).date()
-
-    # Copie de tous les documents et liens Pronote dans Koofr (dossiers Classroom/<Matière>/Pronote/…)
-    try:
-        import koofr_pronote
-        koofr_pronote.archiver(client, _vers_pdf, today)
-    except Exception as err:
-        print("Koofr : étape ignorée suite à une erreur :", err)
 
     devoirs = []
     for h in client.homework(today, today + dt.timedelta(days=JOURS)):
@@ -274,6 +271,15 @@ def fetch(docs):
             ds.append({"date": c.start.date().isoformat(), "heure": c.start.strftime("%H:%M"),
                        "matiere": c.subject.name if c.subject else "", "texte": cat.strip(), "genre": genre})
     docs_cours.sort(key=lambda x: x["date"], reverse=True)
+
+    # Copie de tous les documents Pronote dans Koofr, APRÈS la page, avec une session à part :
+    # une erreur Pronote ici ne peut plus empêcher la mise à jour de la page des devoirs.
+    try:
+        import koofr_pronote
+        koofr_pronote.archiver(connexion(), _vers_pdf, today)
+    except Exception as err:
+        print("Koofr : étape ignorée suite à une erreur :", err)
+
     return {"maj": dt.datetime.now(TZ).isoformat(), "devoirs": devoirs, "ds": ds,
             "edt_date": demain.isoformat(), "edt": cours, "docs_cours": docs_cours}
 
