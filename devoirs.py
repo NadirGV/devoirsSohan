@@ -272,11 +272,11 @@ def fetch(docs):
                        "matiere": c.subject.name if c.subject else "", "texte": cat.strip(), "genre": genre})
     docs_cours.sort(key=lambda x: x["date"], reverse=True)
 
-    # Copie de tous les documents Pronote dans Koofr, APRÈS la page, avec une session à part :
-    # une erreur Pronote ici ne peut plus empêcher la mise à jour de la page des devoirs.
+    # Copie de tous les documents Pronote dans Koofr, APRÈS la page : une erreur ici ne peut plus
+    # empêcher la mise à jour de la page des devoirs. (Une 2e connexion est refusée par Pronote : erreur 23.)
     try:
         import koofr_pronote
-        koofr_pronote.archiver(connexion(), _vers_pdf, today)
+        koofr_pronote.archiver(client, _vers_pdf, today)
     except Exception as err:
         print("Koofr : étape ignorée suite à une erreur :", err)
 

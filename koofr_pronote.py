@@ -211,6 +211,10 @@ def archiver(client, vers_pdf, aujourd_hui):
         except Exception as err:
             print("Koofr : page de liens impossible", dossier, err)
     for mat in sorted(stats):
+        try:
+            k.creer_dossiers(f"{RACINE}/{mat}/Pronote")   # le dossier de la matière existe même sans document
+        except Exception as err:
+            print("Koofr : dossier impossible pour", mat, err)
         print(f"Koofr : {mat} → {stats[mat]['fichiers']} fichier(s) trouvé(s) sur Pronote, {stats[mat]['envoyes']} nouveau(x) envoyé(s)")
     print(f"Koofr : {envoyes} nouveau(x) document(s) Pronote, {len(liens_par_dossier)} page(s) de liens "
           f"(période {debut} → {aujourd_hui}, {len(elements)} cours/devoirs examinés)")
