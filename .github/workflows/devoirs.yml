@@ -32,6 +32,8 @@ jobs:
           PRONOTE_ENT: ${{ secrets.PRONOTE_ENT }}
           PRONOTE_CHILD: ${{ secrets.PRONOTE_CHILD }}
           PAGE_SLUG: ${{ secrets.PAGE_SLUG }}
+          KOOFR_USER: ${{ secrets.KOOFR_USER }}
+          KOOFR_PASS: ${{ secrets.KOOFR_PASS }}
         run: python devoirs.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
