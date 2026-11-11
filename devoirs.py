@@ -220,6 +220,14 @@ def fetch(docs):
         client.set_child(child)
 
     today = dt.datetime.now(TZ).date()
+
+    # Copie de tous les documents et liens Pronote dans Koofr (dossiers Classroom/<Matière>/Pronote/…)
+    try:
+        import koofr_pronote
+        koofr_pronote.archiver(client, _vers_pdf, today)
+    except Exception as err:
+        print("Koofr : étape ignorée suite à une erreur :", err)
+
     devoirs = []
     for h in client.homework(today, today + dt.timedelta(days=JOURS)):
         devoirs.append({
