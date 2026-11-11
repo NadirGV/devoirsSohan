@@ -38,7 +38,7 @@ MATIERES = [
     (("SOCIAL",), "Social Studies"),
     (("HIST", "GEOG"), "Histoire-Géographie"),
     (("PHYS", "CHIM"), "Physique-Chimie"),
-    (("SVT", "VIE ET", "VIE &", "SCIENCES DE LA VIE"), "SVT"),
+    (("SVT", "S.V.T", "S V T", "VIE ET", "VIE &", "SCIENCES DE LA VIE"), "SVT"),
     (("TECHNO",), "Technologie"),
     (("MUSI",), "Éducation musicale"),
     (("ARTS", "PLAST"), "Arts plastiques"),
@@ -90,6 +90,9 @@ class Koofr:
             if r.status_code not in (201, 405, 301) and r.status_code >= 300:
                 raise RuntimeError(f"Dossier Koofr impossible ({courant}) : {r.status_code}")
             self.dossiers.add(courant)
+
+    def supprimer(self, chemin):
+        self.s.delete(self.url(chemin), timeout=60)
 
     def envoyer(self, chemin, data):
         self.creer_dossiers(chemin.rsplit("/", 1)[0])
@@ -160,18 +163,19 @@ def archiver(client, vers_pdf, aujourd_hui):
         except Exception as err:
             print("Koofr : devoirs illisibles du", jour, "au", fin, ":", err)
         jour = fin + dt.timedelta(days=1)
-    # cahier de textes, semaine par semaine (plus fiable sur une longue période)
-    jour = debut
-    while jour <= aujourd_hui:
-        fin = min(jour + dt.timedelta(days=6), aujourd_hui)
+    # cahier de textes, semaine par semaine, du plus récent au plus ancien.
+    # Dès que Pronote refuse (cours de l'ancienne classe), on s'arrête : il bloquerait ensuite tout le reste.
+    fin = aujourd_hui
+    while fin >= debut:
+        jour = max(fin - dt.timedelta(days=6), debut)
         try:
             cours = client.lessons(jour, fin)
         except Exception as err:
-            print("Koofr : cours illisibles du", jour, err)
-            cours = []
+            print("Koofr : cahier de textes inaccessible avant le", fin, "→ arrêt ici (", err, ")")
+            break
         refus = 0
         for c in cours:
-            try:   # le contenu du cours est lu à la demande : Pronote peut le refuser (erreur 23)
+            try:   # le contenu du cours est lu à la demande : Pronote peut le refuser
                 if c.canceled:
                     continue
                 contenu = c.content
@@ -183,8 +187,9 @@ def archiver(client, vers_pdf, aujourd_hui):
             except Exception:
                 refus += 1
         if refus:
-            print(f"Koofr : semaine du {jour} : {refus} contenu(s) de cours refusé(s) par Pronote")
-        jour = fin + dt.timedelta(days=1)
+            print(f"Koofr : semaine du {jour} : {refus} contenu(s) refusé(s) (ancienne classe ?) → arrêt ici")
+            break
+        fin = jour - dt.timedelta(days=1)
 
     envoyes, liens_par_dossier, stats = 0, {}, {}
     for mat, theme, date, source, objet, texte in elements:
@@ -208,9 +213,14 @@ def archiver(client, vers_pdf, aujourd_hui):
                 nom = propre(f.name or "fichier")
                 base, ext = os.path.splitext(nom)
                 nom_final = base + ".pdf" if ext.lower().lstrip(".") in OFFICE_VERS_PDF else nom
+                ancien = f"{dossier}/{nom_final}"              # ancien nom, sans date
+                nom = f"{date:%Y-%m-%d} - {nom}"              # date en tête : tri chronologique sur la Kindle
+                nom_final = f"{date:%Y-%m-%d} - {nom_final}"
                 chemin = f"{dossier}/{nom_final}"
                 if k.existe(chemin):
                     continue
+                if k.existe(ancien):
+                    k.supprimer(ancien)
                 data = f.data
                 if not data or len(data) > TAILLE_MAX:
                     continue
