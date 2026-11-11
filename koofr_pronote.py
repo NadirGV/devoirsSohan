@@ -141,7 +141,10 @@ def archiver(client, vers_pdf, aujourd_hui):
         print("Koofr : non configuré (secrets KOOFR_USER / KOOFR_PASS absents), étape ignorée")
         return
     k = Koofr(user, mdp)
-    debut = getattr(client, "start_day", None) or (aujourd_hui - dt.timedelta(days=120))
+    try:
+        debut = getattr(client, "start_day", None) or (aujourd_hui - dt.timedelta(days=120))
+    except Exception:
+        debut = aujourd_hui - dt.timedelta(days=120)
     if isinstance(debut, dt.datetime):
         debut = debut.date()
 
@@ -166,23 +169,36 @@ def archiver(client, vers_pdf, aujourd_hui):
         except Exception as err:
             print("Koofr : cours illisibles du", jour, err)
             cours = []
+        refus = 0
         for c in cours:
-            contenu = c.content
-            if not contenu or c.canceled:
-                continue
-            theme = propre(contenu.title) if contenu.title else "Cours"
-            elements.append((matiere(c.subject.name if c.subject else ""), theme, c.start.date(),
-                             contenu.title or "Cours", contenu, contenu.description or ""))
+            try:   # le contenu du cours est lu à la demande : Pronote peut le refuser (erreur 23)
+                if c.canceled:
+                    continue
+                contenu = c.content
+                if not contenu:
+                    continue
+                theme = propre(contenu.title) if contenu.title else "Cours"
+                elements.append((matiere(c.subject.name if c.subject else ""), theme, c.start.date(),
+                                 contenu.title or "Cours", contenu, contenu.description or ""))
+            except Exception:
+                refus += 1
+        if refus:
+            print(f"Koofr : semaine du {jour} : {refus} contenu(s) de cours refusé(s) par Pronote")
         jour = fin + dt.timedelta(days=1)
 
     envoyes, liens_par_dossier, stats = 0, {}, {}
     for mat, theme, date, source, objet, texte in elements:
         st = stats.setdefault(mat, {"fichiers": 0, "envoyes": 0, "liens": 0})
-        st["fichiers"] += len([f for f in (getattr(objet, "files", None) or []) if getattr(f, "type", 1) != 0])
+        try:
+            pjs = list(getattr(objet, "files", None) or [])   # lu à la demande, peut être refusé
+        except Exception as err:
+            print("Koofr : pièces jointes illisibles :", mat, date, err)
+            continue
+        st["fichiers"] += len([f for f in pjs if getattr(f, "type", 1) != 0])
         dossier = f"{RACINE}/{mat}/Pronote/{propre(theme)}"
         for url in URL_RE.findall(texte):
             liens_par_dossier.setdefault(dossier, {})[url] = {"url": url, "titre": url, "date": str(date), "source": source}
-        for f in (getattr(objet, "files", None) or []):
+        for f in pjs:
             try:
                 if getattr(f, "type", 1) == 0:  # lien
                     url = f.url if "://" in f.url else "https://" + f.url

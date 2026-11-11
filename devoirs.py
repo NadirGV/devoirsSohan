@@ -278,7 +278,9 @@ def fetch(docs):
         import koofr_pronote
         koofr_pronote.archiver(client, _vers_pdf, today)
     except Exception as err:
+        import traceback
         print("Koofr : étape ignorée suite à une erreur :", err)
+        traceback.print_exc()
 
     return {"maj": dt.datetime.now(TZ).isoformat(), "devoirs": devoirs, "ds": ds,
             "edt_date": demain.isoformat(), "edt": cours, "docs_cours": docs_cours}
