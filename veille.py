@@ -109,7 +109,28 @@ def html_veille(data, tz, classer):
             out.append(f"<div{cls}>{e(c['debut'].replace(':', ' h '))}  {e(c['matiere'])}</div>")
         out.append("</div>")
 
+    # La suite des devoirs : on ajoute tous les jours suivants, puis le script ci-dessous retire
+    # ce qui dépasse en bas de l'écran (au-dessus du pied de page).
+    deja = {j.isoformat() for j in jours}
+    suite = sorted({h["date"] for h in data["devoirs"] if h["date"] > today.isoformat() and h["date"] not in deja})
+    for jour in suite:
+        d = dt.date.fromisoformat(jour)
+        out.append(f"<h2 class='remplir'>Pour {e(_date_fr(d))}</h2>")
+        for h in sorted((h for h in data["devoirs"] if h["date"] == jour), key=lambda h: h["matiere"]):
+            ok = " <span class='ok'>✓ fait</span>" if h["fait"] else ""
+            out.append(f"<div class='d remplir{' fait' if h['fait'] else ''}'><span class='m'>{e(h['matiere'])}</span>{ok}"
+                       f" — {e(_texte(h['texte']))}</div>")
+
     out.append("<div class='pied'>Page complète : ouvre le favori « Devoirs » dans le navigateur.</div>")
+    out.append("""<script>
+(function () {
+  var limite = document.querySelector('.pied').getBoundingClientRect().top - 12;
+  var els = Array.prototype.slice.call(document.querySelectorAll('.remplir'));
+  while (els.length && els[els.length - 1].getBoundingClientRect().bottom > limite) els.pop().remove();
+  // pas de titre de jour orphelin en bas
+  while (els.length && els[els.length - 1].tagName === 'H2') els.pop().remove();
+})();
+</script>""")
     out.append("</body></html>")
     return "\n".join(out)
 
