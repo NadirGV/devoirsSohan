@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "0 12 * * *"    # 16 h à Dubaï
     - cron: "30 14 * * *"   # 18 h 30 à Dubaï
+    - cron: "5 4 * * *"     # 8 h 05 à Dubaï (retire ce qui était prévu pour le jour même)
   workflow_dispatch: {}
 
 permissions:
@@ -35,6 +36,13 @@ jobs:
           KOOFR_USER: ${{ secrets.KOOFR_USER }}
           KOOFR_PASS: ${{ secrets.KOOFR_PASS }}
         run: python devoirs.py
+      - name: Écran de veille de Shams (agenda Classroom)
+        continue-on-error: true
+        env:
+          PAGE_SLUG: ${{ secrets.PAGE_SLUG }}
+          KOOFR_USER: ${{ secrets.KOOFR_USER }}
+          KOOFR_PASS: ${{ secrets.KOOFR_PASS }}
+        run: python shams.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

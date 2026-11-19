@@ -72,7 +72,7 @@ function agenda() {
       for (const x of datesDansTexte_(a.text || '', a.creationTime)) {
         const type = typeDe_(x.segment);
         if (type === 'Devoir' && !/pour|for|réviser|reviser|revise|apprendre|lire|lisez|écoute|ecoute|prépar|prepar/i.test(x.segment)) continue;
-        const matTexte = /^Projets/i.test(c.name) ? (matiereDansTexte_(x.segment) || 'Classe') : mat;
+        const matTexte = /^Projets/i.test(c.name) ? (matiereDansTexte_(x.segment) || matiereDansTexte_(a.text) || 'Classe') : mat;
         items.push({ date: x.date, matiere: matTexte, type: type, texte: resume_(x.segment), source: 'annonce' });
       }
     }
