@@ -461,6 +461,8 @@ def main():
     data = demo(docs) if "--demo" in sys.argv else fetch(docs)
     with open(f"site/{slug}/index.html", "w", encoding="utf-8") as f:
         f.write(render(data))
+    import veille
+    veille.generer(data, TZ, classer, f"site/{slug}")
     with open("site/index.html", "w", encoding="utf-8") as f:
         f.write("<!doctype html><meta name='robots' content='noindex'><title>.</title>")
     with open("site/robots.txt", "w") as f:
