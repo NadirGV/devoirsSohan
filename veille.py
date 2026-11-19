@@ -69,18 +69,25 @@ def html_veille(data, tz, classer):
            "<h1>Devoirs de Sohan</h1>",
            f"<div class='maj'>Mis à jour {e(_date_fr(maj.date()))} à {maj:%H:%M}</div>"]
 
-    for j in jours:
-        items = [h for h in data["devoirs"] if h["date"] == j.isoformat()]
-        ecart = (j - today).days
-        titre = "Pour demain" if ecart == 1 else f"Pour {_date_fr(j)}"
-        out.append(f"<h2>{e(titre)}</h2>")
+    # Tous les jours dans l'ordre : les 2 prochains jours de cours sont toujours affichés,
+    # les suivants (classe « remplir ») sont retirés en partant de la fin si la page déborde.
+    fixes = {j.isoformat() for j in jours}
+    dates = sorted(fixes | {h["date"] for h in data["devoirs"] if h["date"] > today.isoformat()})
+    for jour in dates:
+        j = dt.date.fromisoformat(jour)
+        items = [h for h in data["devoirs"] if h["date"] == jour]
+        fixe = jour in fixes
+        cls = "" if fixe else " remplir"
+        titre = "Pour demain" if (j - today).days == 1 else f"Pour {_date_fr(j)}"
+        out.append(f"<h2 class='{cls.strip()}'>{e(titre)}</h2>")
         if not items:
             out.append("<div class='vide'>Rien de noté.</div>")
         for h in sorted(items, key=lambda h: h["matiere"]):
             ok = " <span class='ok'>✓ fait</span>" if h["fait"] else ""
-            out.append(f"<div class='d{' fait' if h['fait'] else ''}'><span class='m'>{e(h['matiere'])}</span>{ok}"
+            out.append(f"<div class='d{cls}{' fait' if h['fait'] else ''}'><span class='m'>{e(h['matiere'])}</span>{ok}"
                        f" — {e(_texte(h['texte']))}</div>")
 
+    out.append("<div id='bas'>")
     # Contrôles et évaluations des 7 prochains jours
     ctl = {}
     for t in data.get("ds", []):
@@ -91,7 +98,7 @@ def html_veille(data, tz, classer):
             ctl.setdefault((h["date"], h["matiere"]), g)
     limite = today + dt.timedelta(days=7)
     proches = sorted(k for k in ctl if today <= dt.date.fromisoformat(k[0]) <= limite)
-    out.append("<h2>Contrôles de la semaine</h2>")
+    out.append("<h2>Contrôles à venir</h2>")
     if not proches:
         out.append("<div class='vide'>Aucun contrôle prévu.</div>")
     for jour, mat in proches[:6]:
@@ -109,24 +116,15 @@ def html_veille(data, tz, classer):
             out.append(f"<div{cls}>{e(c['debut'].replace(':', ' h '))}  {e(c['matiere'])}</div>")
         out.append("</div>")
 
-    # La suite des devoirs : on ajoute tous les jours suivants, puis le script ci-dessous retire
-    # ce qui dépasse en bas de l'écran (au-dessus du pied de page).
-    deja = {j.isoformat() for j in jours}
-    suite = sorted({h["date"] for h in data["devoirs"] if h["date"] > today.isoformat() and h["date"] not in deja})
-    for jour in suite:
-        d = dt.date.fromisoformat(jour)
-        out.append(f"<h2 class='remplir'>Pour {e(_date_fr(d))}</h2>")
-        for h in sorted((h for h in data["devoirs"] if h["date"] == jour), key=lambda h: h["matiere"]):
-            ok = " <span class='ok'>✓ fait</span>" if h["fait"] else ""
-            out.append(f"<div class='d remplir{' fait' if h['fait'] else ''}'><span class='m'>{e(h['matiere'])}</span>{ok}"
-                       f" — {e(_texte(h['texte']))}</div>")
+    out.append("</div>")
 
     out.append("<div class='pied'>Page complète : ouvre le favori « Devoirs » dans le navigateur.</div>")
     out.append("""<script>
 (function () {
   var limite = document.querySelector('.pied').getBoundingClientRect().top - 12;
+  var bas = document.getElementById('bas');
   var els = Array.prototype.slice.call(document.querySelectorAll('.remplir'));
-  while (els.length && els[els.length - 1].getBoundingClientRect().bottom > limite) els.pop().remove();
+  while (els.length && bas.getBoundingClientRect().bottom > limite) els.pop().remove();
   // pas de titre de jour orphelin en bas
   while (els.length && els[els.length - 1].tagName === 'H2') els.pop().remove();
 })();
