@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 
-LARGEUR, HAUTEUR = 1236, 1648        # Kindle Paperwhite (KOReader adapte si besoin)
+LARGEUR, HAUTEUR = 1272, 1696        # Kindle Paperwhite 6 (écran de la Kindle de Sohan)
 MAX_CAR = 170                         # longueur max d'une consigne
 JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
